@@ -62,7 +62,12 @@ contract dTSLA is ConfirmedOwner, FunctionsClient {
         return requestId;
     }
 
-    function _mintFulFillRequest() internal {}
+    /// Return the amount of TSLA value (in USD) is stored in our broker
+    ///
+    function _mintFulFillRequest(
+        bytes32 requestId,
+        bytes memory response
+    ) internal {}
 
     /// @notice User sends a request to sell TSLA for USDC(redemptionToken)
     /// This will, have the chainlink function call our alpaca(bank)
@@ -71,4 +76,21 @@ contract dTSLA is ConfirmedOwner, FunctionsClient {
     /// 2. Buy USDC on the brokerage
     /// 3. Send USDC to this contract for the user to withdraw
     function sendRedeemRequest() external {}
+
+    function _redeemFulFillRequest(
+        bytes32 requestId,
+        bytes memory response
+    ) internal {}
+
+    function fulfillRequest(
+        bytes32 requestId,
+        bytes memory response,
+        bytes memory /** err */
+    ) internal override {
+        if (s_requestIdToRequest[requestId].mintOrRedeem == MintOrRedeem.mint) {
+            _mintFulFillRequest(requestId, response);
+        } else {
+            _redeemFulFillRequest(requestId, response);
+        }
+    }
 }
