@@ -1,13 +1,66 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.25;
 
-contract dTSLA {
+// /Users/ddanailov/Workspace/Solidity/solidity-foundry/rwas/lib/
+import {FunctionsClient} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
+import {FunctionsRequest} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
+
+import {ConfirmedOwner} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+
+contract dTSLA is ConfirmedOwner, FunctionsClient {
+    using FunctionsRequest for FunctionsRequest.Request;
+
+    enum MintOrRedeem {
+        mint,
+        redeem
+    }
+
+    struct dTslaRequest {
+        uint256 amountOfToken;
+        address requester;
+        MintOrRedeem mintOrRedeem;
+    }
+
+    /// https://docs.chain.link/chainlink-functions/supported-networks
+    address constant SEPOLIA_FUNCTIONS_ROUTER =
+        0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;
+    uint32 constant GAS_LIMIT = 300_000;
+    // Check to get the donID for your supported network https://docs.chain.link/chainlink-functions/supported-networks
+    bytes32 DON_ID = hex"b83E47C2bC239B3bf370bc41e1459A34b41238D0";
+
+    string private s_mintSourceCode;
+    uint64 immutable i_subId;
+
+    mapping(bytes32 requestId => dTslaRequest request)
+        private s_requestIdToRequest;
+
+    constructor(
+        string memory mintSourceCode,
+        uint64 subId
+    ) ConfirmedOwner(msg.sender) FunctionsClient(SEPOLIA_FUNCTIONS_ROUTER) {
+        s_mintSourceCode = mintSourceCode;
+        i_subId = subId;
+    }
+
     /// Send an HTTP request to:
     /// 1. See how much TSLA is bought
     /// 2. If enough TSLA is in the alpaca account
     /// mint dTSLA
     /// 2 transaction function
-    function sendMintRequest(uint256 amount) external onlyOwner {}
+    function sendMintRequest(
+        uint256 amount
+    ) external onlyOwner returns (bytes32 requestId) {
+        FunctionsRequest.Request memory req;
+        req.initializeRequestForInlineJavaScript(s_mintSourceCode);
+        requestId = _sendRequest(req.encodeCBOR(), i_subId, GAS_LIMIT, DON_ID);
+        s_requestIdToRequest[requestId] = dTslaRequest(
+            amount,
+            msg.sender,
+            MintOrRedeem.mint
+        );
+
+        return requestId;
+    }
 
     function _mintFulFillRequest() internal {}
 
