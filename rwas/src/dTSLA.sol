@@ -5,10 +5,14 @@ pragma solidity ^0.8.25;
 import {FunctionsClient} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
 import {FunctionsRequest} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
 
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
 import {ConfirmedOwner} from "../lib/chainlink-brownie-contracts/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
 
-contract dTSLA is ConfirmedOwner, FunctionsClient {
+contract dTSLA is ConfirmedOwner, FunctionsClient, ERC20 {
     using FunctionsRequest for FunctionsRequest.Request;
+
+    error dTSLA_NotEnoughCollateral();
 
     enum MintOrRedeem {
         mint,
@@ -20,6 +24,9 @@ contract dTSLA is ConfirmedOwner, FunctionsClient {
         address requester;
         MintOrRedeem mintOrRedeem;
     }
+
+    // Math constants
+    uint256 constant PRECISION = 1e18;
 
     /// https://docs.chain.link/chainlink-functions/supported-networks
     address constant SEPOLIA_FUNCTIONS_ROUTER =
@@ -67,7 +74,21 @@ contract dTSLA is ConfirmedOwner, FunctionsClient {
     function _mintFulFillRequest(
         bytes32 requestId,
         bytes memory response
-    ) internal {}
+    ) internal {
+        uint256 amountOfTokensToMint = s_requestIdToRequest[requestId]
+            .amountOfToken;
+        s_portfolioBalance = uint256(bytes32(response));
+
+        // if TSLA collateral (how much TSLA we've bought) > dTSLA to mint -> mint
+        // How much TSLA in $$$ do we have?
+        // How much TSLA in $$$ are we minting?
+        if (
+            _getCollateralRatioAdjustedTotalBalance(amountOfTokensToMint) >
+            s_portfolioBalance
+        ) {
+            revert dTSLA_NotEnoughCollateral();
+        }
+    }
 
     /// @notice User sends a request to sell TSLA for USDC(redemptionToken)
     /// This will, have the chainlink function call our alpaca(bank)
@@ -93,4 +114,26 @@ contract dTSLA is ConfirmedOwner, FunctionsClient {
             _redeemFulFillRequest(requestId, response);
         }
     }
+
+    function _getCollateralRatioAdjustedTotalBalance(
+        uint256 amountOfTokensToMint
+    ) internal view returns (uint256) {
+        uint256 calculatedNewTotalValue = getCalculatedNewTotalValue(
+            amountOfTokensToMint
+        );
+    }
+
+    /// The new expected total value in USD of all the dTSLA tokens combined
+    function getCalculatedNewTotalValue(
+        uint256 addedNumberOfTokens
+    ) internal view returns (uint256) {
+        // 10 dtsla tokens + 5 dtsla tokens = 15dtsla tokens * tsla prince (100) = 1500
+        uint256 supply = totalSupply();
+        uint256 totalTokens = supply + addedNumberOfTokens;
+        uint256 teslaPrice = getTslaPrice();
+
+        return (totalTokens * teslaPrice) / PRECISION;
+    }
+
+    function getTslaPrice() internal view returns (uint256) {}
 }

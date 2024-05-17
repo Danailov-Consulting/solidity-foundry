@@ -4,3 +4,6 @@
 [submodule "rwas/lib/chainlink-brownie-contracts"]
 	path = rwas/lib/chainlink-brownie-contracts
 	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
+[submodule "rwas/lib/openzeppelin-contracts"]
+	path = rwas/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
